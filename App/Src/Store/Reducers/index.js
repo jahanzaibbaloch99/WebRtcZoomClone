@@ -1,6 +1,6 @@
 import { combineReducers } from "redux";
-import Connection from "./Connection";
+import Video from "./Video";
 
 export default combineReducers({
-  Connection,
+  Video,
 });

@@ -1,0 +1,31 @@
+import {ADD_REMOTE_STREAM, ADD_STREAM, JOIN_CHAT, MY_STREAM} from './types';
+import IO from 'socket.io-client';
+
+import Peer from 'react-native-peerjs';
+
+export const API_URI = `192.168.18.148:5000`;
+const socket = IO(`${API_URI}`, {
+  forceNew: true,
+});
+socket.on('connection', () => {
+  console.log('Connected Client');
+});
+
+const peerServer = new Peer(undefined, {
+  host: '192.168.18.148',
+  secure:false,
+//   port:5000,
+  path:"/mypeer"
+});
+
+// peerServer.on("error" , console.log("WORK"))
+export const joinRoom = (stream) => {
+  return async (dispatch) => {
+    dispatch({
+      type: ADD_STREAM,
+      payload: {Stream: stream},
+    });
+  };
+};
+
+const connectToNewUser = () => {};
