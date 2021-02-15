@@ -1,8 +1,9 @@
 import React, {useEffect} from 'react';
-import {SafeAreaView, View, Text, StatusBar} from 'react-native';
+import {SafeAreaView, View, Text, StatusBar,Dimensions} from 'react-native';
 import {RTCPeerConnection, mediaDevices} from 'react-native-webrtc';
 import {joinRoom} from './Src/Store/Actions/videoActions';
 import {useDispatch, useSelector} from 'react-redux';
+const {height,width} = Dimensions.get("window")
 const App = () => {
   const dispatch = useDispatch();
   useEffect(() => {
@@ -58,7 +59,17 @@ const App = () => {
       <SafeAreaView>
         <StatusBar barStyle="dark-content" />
         <View
-          style={{flex: 1, justifyContent: 'flex-start', padding: 10}}></View>
+          style={{flex: 1, justifyContent: 'flex-start', padding: 10}}>
+            <View style={{
+              flex:1,
+              justifyContent:"center",
+              height:height * 0.5,
+              borderColor:"yellow",
+              borderWidth:4,
+            }}>
+              
+            </View>
+          </View>
       </SafeAreaView>
     </>
   );
