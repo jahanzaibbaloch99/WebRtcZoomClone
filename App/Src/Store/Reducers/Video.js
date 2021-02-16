@@ -12,7 +12,7 @@ export default (state = initialState, actions) => {
     case 'ADD_STREAM':
       return {
         ...state,
-        streams: [...initialState.streams, actions.payload],
+        streams: [...initialState.streams, actions.payload.streams],
       };
     default:
       return state;

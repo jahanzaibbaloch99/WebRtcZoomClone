@@ -12,39 +12,37 @@ socket.on('connection', () => {
 });
 
 export const joinRoom = (stream) => {
-  const roomID = 'asdfjklasjdflkj89uqwioruoweu';
+  // const roomID = 'asdfjklasjdflkj89uqwioruoweu';
   return async (dispatch) => {
-    const peerServer = new Peer(undefined, {
-      host: '192.168.18.148',
-      secure: false,
-      port: 5000,
-      path: '/mypeer',
-    });
-    peerServer.on('error', console.log);
+    // const peerServer = new Peer(undefined, {
+    //   host: '192.168.18.148',
+    //   secure: false,
+    //   port: 5000,
+    //   path: '/mypeer',
+    // });
+    // peerServer.on('error', console.log);
     dispatch({
       type: 'MY_STREAM',
       payload: {Stream: stream},
     });
 
-    peerServer.on('open', (userId) => {
-      console.log('JOIN ROOM');
-      socket.emit('join-room', {userId, roomID});
-    });
+    // peerServer.on('open', (userId) => {
+    //   console.log('JOIN ROOM');
+    //   socket.emit('join-room', {userId, roomID});
+    // });
 
-    socket.on('user-connected', (userId) => {
-      console.log('USER CONNECTED');
-      const call = peerServer.call(userId, stream);
-    });
-
-    peerServer.on('call', (call) => {
-      call.answer(stream);
-      call.on('stream', (stream) => {
-        console.log(stream, 'STREAM otger');
-        dispatch({
-          type: 'ADD_STREAM',
-          payload: stream,
-        });
-      });
-    });
+    // socket.on('user-connected', (userId) => {
+    //   console.log('USER CONNECTED');
+    //   const call = peerServer.call(userId, stream);
+    // });
+    // peerServer.on('call', (call) => {
+    //   call.answer(stream);
+    //   call.on('stream', (stream) => {
+    //     dispatch({
+    //       type: 'ADD_STREAM',
+    //       payload: {streams: stream},
+    //     });
+    //   });
+    // });
   };
 };
