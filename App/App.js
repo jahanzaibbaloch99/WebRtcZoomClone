@@ -1,114 +1,116 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- * @flow strict-local
- */
-
-import React from 'react';
-import {
-  SafeAreaView,
-  StyleSheet,
-  ScrollView,
-  View,
-  Text,
-  StatusBar,
-} from 'react-native';
-
-import {
-  Header,
-  LearnMoreLinks,
-  Colors,
-  DebugInstructions,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+import React, {useEffect} from 'react';
+import {SafeAreaView, View, Dimensions, ScrollView} from 'react-native';
+import {RTCPeerConnection, mediaDevices, RTCView} from 'react-native-webrtc';
+import {joinRoom} from './Src/Store/Actions/videoActions';
+import {useDispatch, useSelector} from 'react-redux';
+import {MY_STREAM} from './Src/Store/Actions/types';
+const {height, width} = Dimensions.get('window');
 
 const App = () => {
+  const dispatch = useDispatch();
+  const {Stream, streams} = useSelector((state) => state.Video);
+  console.log(streams, 'STREAMS');
+  useEffect(() => {
+    const configuration = {iceServers: [{url: 'stun:stun.l.google.com:19302'}]};
+    const pc = new RTCPeerConnection(configuration);
+    let isFront = true;
+    mediaDevices.enumerateDevices().then((sourceInfos) => {
+      let videoSourceId;
+      for (let i = 0; i < sourceInfos.length; i++) {
+        const sourceInfo = sourceInfos[i];
+        if (
+          sourceInfo.kind == 'videoinput' &&
+          sourceInfo.facing == (isFront ? 'front' : 'environment')
+        ) {
+          videoSourceId = sourceInfo.deviceId;
+        }
+      }
+      mediaDevices
+        .getUserMedia({
+          audio: true,
+          video: {
+            width: 640,
+            height: 480,
+            frameRate: 30,
+            facingMode: isFront ? 'user' : 'environment',
+            deviceId: videoSourceId,
+          },
+        })
+        .then((stream) => {
+          dispatch(joinRoom(stream));
+          // Got stream!
+        })
+        .catch((error) => {
+          console.log(error, 'E');
+          // Log error
+        });
+    });
+  }, []);
   return (
-    <>
-      <StatusBar barStyle="dark-content" />
-      <SafeAreaView>
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          style={styles.scrollView}>
-          <Header />
-          {global.HermesInternal == null ? null : (
-            <View style={styles.engine}>
-              <Text style={styles.footer}>Engine: Hermes</Text>
-            </View>
-          )}
-          <View style={styles.body}>
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Step One</Text>
-              <Text style={styles.sectionDescription}>
-                Edit <Text style={styles.highlight}>App.js</Text> to change this
-                screen and then come back to see your edits.
-              </Text>
-            </View>
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>See Your Changes</Text>
-              <Text style={styles.sectionDescription}>
-                <ReloadInstructions />
-              </Text>
-            </View>
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Debug</Text>
-              <Text style={styles.sectionDescription}>
-                <DebugInstructions />
-              </Text>
-            </View>
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Learn More</Text>
-              <Text style={styles.sectionDescription}>
-                Read the docs to discover what to do next:
-              </Text>
-            </View>
-            <LearnMoreLinks />
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    </>
+    <SafeAreaView style={{flex: 1}}>
+      <View style={{flex: 1, justifyContent: 'flex-start', padding: 10}}>
+        <View
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            height: height * 0.5,
+            borderColor: 'yellow',
+            borderWidth: 4,
+          }}>
+          {Stream && Stream ? (
+            <RTCView
+              style={{width, height: height * 0.4}}
+              streamURL={Stream.toURL()}
+            />
+          ) : null}
+        </View>
+        <View style={{flex: 1, backgroundColor: 'black'}}>
+          <ScrollView horizontal style={{padding: 10}}>
+            <>
+              <>
+                {streams.length > 0 ? (
+                  streams?.map((data, index) => {
+                    console.log(data.toURL(), 'STREAM');
+                    return (
+                      <View
+                        key={index}
+                        style={{
+                          width: 280,
+                          backgroundColor: 'red',
+                          borderWidth: 1,
+                          borderColor: '#fff',
+                          marginRight: 10,
+                          padding: 5,
+                        }}>
+                        <RTCView
+                          streamURL={data.toURL()}
+                          style={{width: 180, height: height * 0.4}}
+                        />
+                      </View>
+                    );
+                  })
+                ) : (
+                  <></>
+                )}
+              </>
+            </>
+            <>
+              <View
+                style={{
+                  width: 280,
+                  backgroundColor: 'blue',
+                  borderWidth: 1,
+                  borderColor: '#fff',
+                  marginRight: 10,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}></View>
+            </>
+          </ScrollView>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  scrollView: {
-    backgroundColor: Colors.lighter,
-  },
-  engine: {
-    position: 'absolute',
-    right: 0,
-  },
-  body: {
-    backgroundColor: Colors.white,
-  },
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: Colors.black,
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-    color: Colors.dark,
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-  footer: {
-    color: Colors.dark,
-    fontSize: 12,
-    fontWeight: '600',
-    padding: 4,
-    paddingRight: 12,
-    textAlign: 'right',
-  },
-});
 
 export default App;

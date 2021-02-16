@@ -9,8 +9,9 @@ const server = http.createServer(app);
 
 app.use(express.json());
 const io = socketio(server).sockets;
-const customGenerationFunction = () =>
-  (Math.random().toString(36) + "0000000000000000000").substr(2, 16);
+const customGenerationFunction = () => {
+  return (Math.random().toString(36) + "0000000000000000000").substr(2, 16);
+};
 const peerServer = ExpressPeerServer(server, {
   debug: true,
   path: "/",
@@ -19,7 +20,11 @@ const peerServer = ExpressPeerServer(server, {
 app.use("/mypeer", peerServer);
 
 io.on("connection", function (socket) {
-  console.log("CONECTED");
+  socket.on("join-room", ({ roomID, userId }) => {
+    console.log("JOIN ROOM", roomID);
+    socket.join(roomID);
+    socket.to(roomID).broadcast.emit("user-connected", userId);
+  });
 });
 const port = process.env.PORT || 5000;
 

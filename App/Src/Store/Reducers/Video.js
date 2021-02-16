@@ -1,14 +1,19 @@
 const initialState = {
-  Connection: '',
+  Stream: null,
+  streams: [],
 };
 export default (state = initialState, actions) => {
   switch (actions.type) {
-    case 'CONNECTIONS':
+    case 'MY_STREAM':
       return {
         ...state,
         ...actions.payload,
       };
-
+    case 'ADD_STREAM':
+      return {
+        ...state,
+        streams: [...initialState.streams, actions.payload],
+      };
     default:
       return state;
   }
