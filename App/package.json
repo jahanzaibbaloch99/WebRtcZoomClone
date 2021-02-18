@@ -2,7 +2,7 @@
   "name": "RtcwebviewTest",
   "version": "0.0.1",
   "private": true,
-  "proxy" : "http://localhost:5000",
+  "proxy": "http://localhost:5000",
   "scripts": {
     "android": "react-native run-android",
     "ios": "react-native run-ios",
