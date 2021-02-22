@@ -14,7 +14,6 @@ io.on("connection", (socket) => {
       rooms[roomID] = [socket.id];
     }
     const otherUser = rooms[roomID].find((id) => id !== socket.id);
-    console.log(otherUser, "PT");
     if (otherUser) {
       socket.emit("other user", otherUser);
       io.emit("user joined", socket.id);
@@ -34,6 +33,10 @@ io.on("connection", (socket) => {
   socket.on("ice-candidate", (incoming) => {
     console.log(incoming, "ICONS");
     socket.emit("ice-candidate", incoming.candidate);
+  });
+  socket.on("ice-candidate-local", (incoming) => {
+    console.log(incoming, "ICONS");
+    socket.emit("ice-candidate-local", incoming.candidate);
   });
 });
 const port = process.env.PORT || 5000;
