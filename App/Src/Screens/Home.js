@@ -16,7 +16,11 @@ const Home = (props) => {
       id: '121yef8sy18q7fsga804g',
     });
   };
-
+  const onNewEnter = () => {
+    props.navigation.navigate('New', {
+      room: '1234',
+    });
+  };
   return (
     <SafeAreaView style={{flex: 1}}>
       <View
@@ -53,6 +57,18 @@ const Home = (props) => {
             backgroundColor: 'red',
           }}>
           <Text>Create Room</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onNewEnter}
+          style={{
+            justifyContent: 'center',
+            alignItems: 'center',
+            alignContent: 'center',
+            height: 50,
+            width: '60%',
+            backgroundColor: 'red',
+          }}>
+          <Text>CREATE NEW ROOM</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

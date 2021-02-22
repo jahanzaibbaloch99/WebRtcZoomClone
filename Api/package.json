@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev" : "nodemon server"
+    "dev": "nodemon server"
   },
   "keywords": [],
   "author": "",
@@ -13,7 +13,8 @@
     "express": "^4.17.1",
     "peer": "^0.6.1",
     "socket.io": "^2.3.0",
-    "uui": "^1.0.7"
+    "uui": "^1.0.7",
+    "ws": "^7.4.3"
   },
   "devDependencies": {
     "morgan": "^1.10.0",

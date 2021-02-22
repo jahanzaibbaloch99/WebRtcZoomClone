@@ -1,329 +1,311 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- * @flow strict-local
- */
+import React, {useState, useEffect} from 'react';
+import {View, SafeAreaView, Button, StyleSheet, Text} from 'react-native';
+import {RTCPeerConnection, RTCView, mediaDevices} from 'react-native-webrtc';
+import io from 'socket.io-client';
 
-import React from 'react';
-import {
-  SafeAreaView,
-  StyleSheet,
-  ScrollView,
-  View,
-  Text,
-  StatusBar,
-  TouchableOpacity,
-  Dimensions,
-} from 'react-native';
+export default function WEBRtc({roomNumber}) {
+  const [localStream, setLocalStream] = useState();
+  const [remoteStream, setRemoteStream] = useState();
+  let isCaller, peerConnection;
+  const socket = io('https://desolate-earth-25164.herokuapp.com/');
+  // const socket = io("http://192.168.0.102:3000");
 
-import {
-  RTCPeerConnection,
-  RTCIceCandidate,
-  RTCSessionDescription,
-  RTCView,
-  MediaStream,
-  MediaStreamTrack,
-  mediaDevices,
-  registerGlobals,
-} from 'react-native-webrtc';
+  const constraints = {
+    audio: true,
+    video: true,
+  };
 
-import SocketIOClinet from 'socket.io-client';
+  /**
+   * Getting ready for local stream
+   */
+  const startLocalStream = () => {
+    socket.emit('joinTheRoom', '123456');
+  };
 
-const dimensions = Dimensions.get('window');
+  socket.on('roomCreated', (room) => {
+    console.log('room created');
 
-class App extends React.Component {
-  constructor(props) {
-    super(props);
-
-    this.state = {
-      localStream: null,
-      remoteStream: null,
-    };
-
-    this.sdp;
-    this.socket = SocketIOClinet.connect(`192.168.18.148:5000`);
-    this.candidates = [];
-  }
-
-  componentDidMount = () => {
-    console.log(this.socket , "SOCKET")
-    this.socket.on('connection-success', (success) => {
-      console.log(success);
+    mediaDevices.getUserMedia(constraints).then((stream) => {
+      setLocalStream(stream);
+      isCaller = true;
     });
+  });
 
-    this.socket.on('offer', (sdp) => {
-      this.sdp = JSON.stringify(sdp);
-
-      // set sdp as remote description
-      this.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+  socket.on('roomJoined', (room) => {
+    console.log('room joined');
+    mediaDevices.getUserMedia(constraints).then((stream) => {
+      setLocalStream(stream);
+      socket.emit('ready', '123456');
     });
-    this.socket.on('answer', (sdp) => {
-      this.sdp = JSON.stringify(sdp);
+  });
 
-      // set sdp as remote description
-      this.pc.setRemoteDescription(new RTCSessionDescription(sdp));
-    });
-    this.socket.on('ice-candidate', (candidate) => {
-      // console.log('From Peer... ', JSON.stringify(candidate))
-      // this.candidates = [...this.candidates, candidate]
-      this.pc.addIceCandidate(new RTCIceCandidate(candidate));
-    });
-
-    const pc_config = {
+  useEffect(() => {
+    const configuration = {
       iceServers: [
-        // {
-        //   urls: 'stun:[STUN_IP]:[PORT]',
-        //   'credentials': '[YOR CREDENTIALS]',
-        //   'username': '[USERNAME]'
-        // },
-        {
-          urls: 'stun:stun.l.google.com:19302',
-        },
+        {urls: 'stun:stun.services.mozilla.com'},
+        {urls: 'stun:stun.l.google.com:19302'},
       ],
     };
 
-    this.pc = new RTCPeerConnection(pc_config);
-
-    this.pc.onicecandidate = (e) => {
-      // send the candidates to the remote peer
-      // see addCandidate below to be triggered on the remote peer
-      if (e.candidate) {
-        // console.log(JSON.stringify(e.candidate))
-        this.socket.emit('ice-candidate', {candidate: e.candidate});
+    socket.on('ready', (room) => {
+      console.log("ready" , "SDADA")
+      if (isCaller) {
+        console.log('ready', room);
+        peerConnection = new RTCPeerConnection(configuration);
+        peerConnection.onicecandidate = onIceCandidate;
+        peerConnection.iceConnectionState = (e) => {
+          console.log('iceConnectionState', e);
+        };
+        peerConnection.onaddstream = onAddStream;
+        peerConnection.createOffer().then((offer) => {
+          return peerConnection.setLocalDescription(offer).then(() => {
+            console.log('emit offer');
+            socket.emit('offer', {
+              type: 'offer',
+              sdp: offer,
+              room: '123456',
+            });
+          });
+        });
       }
-    };
+    });
 
-    // triggered when there is a change in connection state
-    this.pc.oniceconnectionstatechange = (e) => {
-      console.log(e);
-    };
+    socket.on('offer', (e) => {
+      if (!isCaller) {
+        peerConnection = new RTCPeerConnection(configuration);
+        console.log('offer');
 
-    this.pc.onaddstream = (e) => {
-      debugger;
-      // this.remoteVideoref.current.srcObject = e.streams[0]
-      this.setState({
-        remoteStream: e.stream,
-      });
-    };
+        peerConnection.onicecandidate = onIceCandidate;
+        peerConnection.onaddstream = onAddStream;
+        peerConnection.iceConnectionState = (e) => {
+          console.log('iceConnectionState', e);
+        };
+        console.log('about to create answer');
 
-    const success = (stream) => {
-      console.log(stream.toURL());
-      this.setState({
-        localStream: stream,
-      });
-      this.pc.addStream(stream);
-    };
-
-    const failure = (e) => {
-      console.log('getUserMedia Error: ', e);
-    };
-
-    let isFront = true;
-    mediaDevices.enumerateDevices().then((sourceInfos) => {
-      console.log(sourceInfos);
-      let videoSourceId;
-      for (let i = 0; i < sourceInfos.length; i++) {
-        const sourceInfo = sourceInfos[i];
-        if (
-          sourceInfo.kind == 'videoinput' &&
-          sourceInfo.facing == (isFront ? 'front' : 'environment')
-        ) {
-          videoSourceId = sourceInfo.deviceId;
-        }
+        //accept offer from here(ready)
+        peerConnection.setRemoteDescription(e).then(() => {
+          return peerConnection.createAnswer().then((answer) => {
+            return peerConnection.setLocalDescription(answer).then(() => {
+              console.log('emit answer', answer);
+              socket.emit('answer', {
+                type: 'answer',
+                sdp: answer,
+                room: '123456',
+              });
+            });
+          });
+        });
       }
-
-      const constraints = {
-        audio: true,
-        video: {
-          mandatory: {
-            minWidth: 500, // Provide your own width, height and frame rate here
-            minHeight: 300,
-            minFrameRate: 30,
-          },
-          facingMode: isFront ? 'user' : 'environment',
-          optional: videoSourceId ? [{sourceId: videoSourceId}] : [],
-        },
-      };
-
-      mediaDevices.getUserMedia(constraints).then(success).catch(failure);
     });
-  };
-  sendToPeer = (messageType, payload) => {
-    this.socket.emit(messageType, {
-      socketID: this.socket.id,
-      payload,
+
+    function onAddStream(e) {
+      console.log('remote stream', e);
+      if (e.stream && remoteStream !== e.stream) {
+        console.log('remote stream', e.stream);
+
+        setRemoteStream(e.stream);
+      }
+    }
+
+    function onIceCandidate(event) {
+      console.log('ice candidate');
+
+      if (event.candidate) {
+        console.log('sending ice candidate', event.candidate);
+
+        socket.emit('candidate', {
+          type: 'candidate',
+          label: event.candidate.sdpMLineIndex,
+          id: event.candidate.sdpMid,
+          candidate: event.candidate.candidate,
+          room: '123456',
+        });
+      }
+    }
+
+    socket.on('candidate', (e) => {
+      console.log('candidate', isCaller);
+      peerConnection.addIceCandidate(e);
+      peerConnection.addStream(localStream);
     });
-  };
 
-  createOffer = () => {
-    console.log('Offer');
-
-    // https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createOffer
-    // initiates the creation of SDP
-    this.pc.createOffer({offerToReceiveVideo: 1}).then((sdp) => {
-      // console.log(JSON.stringify(sdp))
-      console.log(sdp , "SDP")
-      // set offer sdp as local description
-      this.pc.setLocalDescription(sdp);
-
-      this.socket.emit('offer', {sdp: sdp});
+    socket.on('answer', (e) => {
+      console.log('answer', e);
+      peerConnection.setRemoteDescription(e);
     });
-  };
+  });
 
-  createAnswer = () => {
-    console.log('Answer');
-    this.pc.createAnswer({offerToReceiveVideo: 1}).then((sdp) => {
-      // console.log(JSON.stringify(sdp))
-
-      // set answer sdp as local description
-      this.pc.setLocalDescription(sdp);
-
-      this.socket.emit('answer', {sdp: sdp});
-    });
-  };
-
-  setRemoteDescription = () => {
-    // retrieve and parse the SDP copied from the remote peer
-    const desc = JSON.parse(this.sdp);
-
-    // set sdp as remote description
-    this.pc.setRemoteDescription(new RTCSessionDescription(desc));
-  };
-
-  addCandidate = () => {
-    // retrieve and parse the Candidate copied from the remote peer
-    // const candidate = JSON.parse(this.textref.value)
-    // console.log('Adding candidate:', candidate)
-
-    // add the candidate to the peer connection
-    // this.pc.addIceCandidate(new RTCIceCandidate(candidate))
-
-    this.candidates.forEach((candidate) => {
-      console.log(JSON.stringify(candidate));
-      this.pc.addIceCandidate(new RTCIceCandidate(candidate));
-    });
-  };
-
-  render() {
-    const {localStream, remoteStream} = this.state;
-
-    const remoteVideo = remoteStream ? (
-      <RTCView
-        key={2}
-        mirror={true}
-        style={{...styles.rtcViewRemote}}
-        objectFit="contain"
-        streamURL={remoteStream && remoteStream.toURL()}
-      />
-    ) : (
-      <View style={{padding: 15}}>
-        <Text style={{fontSize: 22, textAlign: 'center', color: 'white'}}>
-          Waiting for Peer connection ...
-        </Text>
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.streamContainer}>
+        <View style={styles.streamWrapper}>
+          <View style={styles.localStream}>
+            {localStream && (
+              <RTCView style={styles.rtc} streamURL={localStream.toURL()} />
+            )}
+            {!localStream && (
+              <Button title="Tap to start" onPress={startLocalStream} />
+            )}
+          </View>
+          <View style={styles.rtcview}>
+            {remoteStream && (
+              <RTCView style={styles.rtc} streamURL={remoteStream.toURL()} />
+            )}
+          </View>
+        </View>
+        {/* {!!remoteStream ? <Button style={styles.toggleButtons} title="Click to stop call" onPress={closeStreams} disabled={!remoteStream} /> : localStream && <Button title="Click to start call" onPress={startCall}  />} */}
       </View>
-    );
-
-    return (
-      <SafeAreaView style={{flex: 1}}>
-        <StatusBar backgroundColor="blue" barStyle={'dark-content'} />
-        <View style={{...styles.buttonsContainer}}>
-          <View style={{flex: 1}}>
-            <TouchableOpacity onPress={this.createOffer}>
-              <View style={styles.button}>
-                <Text style={{...styles.textContent}}>Call</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-          <View style={{flex: 1}}>
-            <TouchableOpacity onPress={this.createAnswer}>
-              <View style={styles.button}>
-                <Text style={{...styles.textContent}}>Answer</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-        <View style={{...styles.videosContainer}}>
-          <View
-            style={{
-              position: 'absolute',
-              zIndex: 1,
-              bottom: 10,
-              right: 10,
-              width: 100,
-              height: 200,
-              backgroundColor: 'black', //width: '100%', height: '100%'
-            }}>
-            <View style={{flex: 1}}>
-              <TouchableOpacity
-                onPress={() => localStream._tracks[1]._switchCamera()}>
-                <View>
-                  <RTCView
-                    key={1}
-                    zOrder={0}
-                    objectFit="cover"
-                    style={{...styles.rtcView}}
-                    streamURL={localStream && localStream.toURL()}
-                  />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <ScrollView style={{...styles.scrollView}}>
-            <View
-              style={{
-                flex: 1,
-                width: '100%',
-                backgroundColor: 'black',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}>
-              {remoteVideo}
-            </View>
-          </ScrollView>
-        </View>
-      </SafeAreaView>
-    );
-  }
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
-  buttonsContainer: {
+  container: {
+    backgroundColor: '#313131',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: '100%',
+    width: '100%',
+  },
+  streamContainer: {
+    backgroundColor: 'grey',
+    // justifyContent: 'space-around',
+    alignItems: 'center',
+    height: '50%',
+    width: '100%',
+    flexDirection: 'column',
+  },
+  streamWrapper: {
+    backgroundColor: 'grey',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    height: '100%',
+    width: '100%',
     flexDirection: 'row',
   },
-  button: {
-    margin: 5,
-    paddingVertical: 10,
-    backgroundColor: 'lightgrey',
-    borderRadius: 5,
-  },
-  textContent: {
-    fontFamily: 'Avenir',
+  roomTitle: {
     fontSize: 20,
-    textAlign: 'center',
+    paddingTop: 20,
   },
-  videosContainer: {
-    flex: 1,
+  rtcview: {
+    width: '45%',
+    height: '60%',
+    borderColor: '#ccc',
+    borderWidth: 3,
+  },
+  rtc: {
+    width: '100%',
+    height: '100%',
+  },
+  localStream: {
+    width: '45%',
+    height: '60%',
+    borderColor: '#ccc',
+    borderWidth: 3,
+    display: 'flex',
+    alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  rtcView: {
-    width: 100, //dimensions.width,
-    height: 200, //dimensions.height / 2,
-    backgroundColor: 'black',
-  },
-  scrollView: {
-    flex: 1,
-    // flexDirection: 'row',
-    backgroundColor: 'teal',
-    padding: 15,
-  },
-  rtcViewRemote: {
-    width: dimensions.width - 30,
-    height: 200, //dimensions.height / 2,
-    backgroundColor: 'black',
+    justifyContent: 'space-around',
   },
 });
 
-export default App;
+// socket.on("ready",()=>{
+
+//   if(isCaller){
+//     console.log('ready');
+//     localPC.onicecandidate = onIceCandidateLocal;
+//     localPC.addStream(localST);
+//     // localPC.onaddstream = onAddStream;
+
+//     localPC.createOffer()
+//      .then(offer=>{
+//         localPC.setLocalDescription(offer)
+//         .then(()=>{
+//           remotePC.setRemoteDescription(localPC.localDescription);
+
+//           console.log('ofer start');
+//           socket.emit('offer',{
+//             type:'offer',
+//             sdp:offer.sdp,
+//             room: roomNumber
+//           });
+//         });
+//      }).catch(error=>{
+//       console.log(error);
+//   });
+//   }
+// });
+
+// socket.on("offer",e=>{
+
+//     if(!isCaller){
+//       console.log('offer');
+//         remotePC.onicecandidate = onIceCandidateRemote;
+//         remotePC.onaddstream = onAddStream;
+
+//         // remotePC.setRemoteDescription(localPC.localDescription);
+//         remotePC.createAnswer().then(answer=>{
+//             console.log('answer start');
+//               remotePC.setLocalDescription(answer)
+//               .then(()=>{
+//                   localPC.setRemoteDescription(remotePC.localDescription);
+//                   socket.emit('answer',{
+//                     type:'answer',
+//                     sdp: answer.sdp,
+//                     room: roomNumber
+//                 });
+//               });
+//         }).catch(error=>{
+//           console.log("answer error", error);
+//       });
+//       // console.log(`Answer from remotePC: ${answer.sdp}`);
+//     }
+
+// });
+
+// function onIceCandidateLocal(e){
+//   if (e.candidate) {
+//         socket.emit('candidateLocal',{
+//             type: 'candidateLocal',
+//             label: e.candidate.sdpMLineIndex,
+//             id: e.candidate.sdpMid,
+//             candidate: e.candidate.candidate,
+//             room: roomNumber
+//         });
+//     }
+// }
+
+// function onIceCandidateRemote(e){
+//   if (e.candidate) {
+//         socket.emit('candidateRemote',{
+//             type: 'candidateRemote',
+//             label: e.candidate.sdpMLineIndex,
+//             id: e.candidate.sdpMid,
+//             candidate: e.candidate.candidate,
+//             room: roomNumber
+//         });
+//     }
+// }
+
+// socket.on('candidateLocal', e=>{
+//   console.log('candidateLocal', e.candidate);
+//   remotePC.addIceCandidate(e.candidate);
+// });
+
+// socket.on('candidateRemote', e=>{
+//   console.log('candidateRemote');
+//   localPC.addIceCandidate(e.candidate);
+// });
+
+// function onAddStream(e){
+//   console.log('add remote stream', e.steram);
+
+//   if (e.stream && remoteStream !== e.stream) {
+//     setRemoteStream(e.stream);
+//   }
+// };
+
+// socket.on('answer', e=>{
+//   console.log('answer');
+//   localPC.setRemoteDescription(remotePC.localDescription);
+// });
