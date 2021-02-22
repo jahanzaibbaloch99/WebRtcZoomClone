@@ -21,10 +21,11 @@ const Room = (props) => {
   const [cachedRemotePC, setCachedRemotePC] = React.useState();
   const [isMuted, setIsMuted] = React.useState(false);
   const [userID, setUserId] = React.useState('');
+  const [offerData, setOfferData] = React.useState('');
+
   const [partnerID, setParnetId] = React.useState('');
   const configuration = {iceServers: [{url: 'stun:stun.l.google.com:19302'}]};
   const localPC = new RTCPeerConnection(configuration);
-
   useEffect(() => {
     let isFront = true;
     mediaDevices.enumerateDevices().then((sourceInfos) => {
@@ -60,6 +61,7 @@ const Room = (props) => {
             setUserId(data);
           });
           socket.on('other user', (userID) => {
+            console.log('other user', userID);
             setParnetId(userID);
           });
           // Got stream!
@@ -71,9 +73,14 @@ const Room = (props) => {
 
     socket.on('offer', (data) => {
       console.log('offer ', data);
-      const offer = localPC.setRemoteDescription(
-        new RTCSessionDescription(data.sdp),
-      );
+      setOfferData(data);
+      const offer = localPC
+        .setRemoteDescription(new RTCSessionDescription(data.sdp))
+        .then((ele) => localPC.createAnswer())
+        .then((ans) => {
+          console.log(ans, 'ANS');
+          localPC.setLocalDescription(ans);
+        });
       console.log(offer, 'OFFEr');
     });
     socket.on('answer', (data) => {
@@ -84,12 +91,14 @@ const Room = (props) => {
       console.log(answer);
     });
     socket.on('ice-candidate', (data) => {
+      console.log('ICE ', data);
       localPC
         .addIceCandidate(new RTCIceCandidate(data.candidate))
         .then((com) => console.log('ICE'));
     });
   }, []);
   localPC.onicecandidate = (e) => {
+    console.log(e, 'EE');
     if (e.candidate) {
       const payload = {
         target: userID,
@@ -100,6 +109,7 @@ const Room = (props) => {
     }
   };
   localPC.onaddstream = (e) => {
+    console.log(e, 'E');
     if (e.stream && remoteStream !== e.stream) {
       console.log('RemotePC received the stream', e.stream);
       setRemoteStream(e.stream);
