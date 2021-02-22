@@ -34,10 +34,6 @@ io.on("connection", (socket) => {
     console.log(incoming, "ICONS");
     socket.emit("ice-candidate", incoming.candidate);
   });
-  socket.on("ice-candidate-local", (incoming) => {
-    console.log(incoming, "ICONS");
-    socket.emit("ice-candidate-local", incoming.candidate);
-  });
 });
 const port = process.env.PORT || 5000;
 

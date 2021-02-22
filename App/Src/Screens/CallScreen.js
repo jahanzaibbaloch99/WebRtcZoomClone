@@ -1,13 +1,22 @@
-import React, {useEffect, useState, useCallback} from 'react';
-import {View, StyleSheet, Alert} from 'react-native';
-import {Text} from 'react-native-paper';
-import {Button} from 'react-native-paper';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {TextInput} from 'react-native-paper';
-import {withSocket} from '../Utils/withSocket';
-import {useFocusEffect} from '@react-navigation/native';
+/**
+ * Sample React Native App
+ * https://github.com/facebook/react-native
+ *
+ * @format
+ * @flow strict-local
+ */
 
-import InCallManager from 'react-native-incall-manager';
+import React from 'react';
+import {
+  SafeAreaView,
+  StyleSheet,
+  ScrollView,
+  View,
+  Text,
+  StatusBar,
+  TouchableOpacity,
+  Dimensions,
+} from 'react-native';
 
 import {
   RTCPeerConnection,
@@ -20,106 +29,100 @@ import {
   registerGlobals,
 } from 'react-native-webrtc';
 
-const CallScreen = (props) => {
-  const {navigation, socket} = props;
-  let name;
-  let connectedUser;
-  const [userId, setUserId] = useState('');
-  const [socketActive, setSocketActive] = useState(false);
-  const [calling, setCalling] = useState(false);
-  // Video Scrs
-  const [localStream, setLocalStream] = useState({toURL: () => null});
-  const [remoteStream, setRemoteStream] = useState({toURL: () => null});
-  const [conn, setConn] = useState(new WebSocket('ws://3.20.188.26:8080'));
-  const [friendId, setFriendId] = useState('');
-  const [yourConn, setYourConn] = useState(
-    //change the config as you need
-    new RTCPeerConnection({
+import SocketIOClinet from 'socket.io-client';
+
+const dimensions = Dimensions.get('window');
+
+class App extends React.Component {
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      localStream: null,
+      remoteStream: null,
+    };
+
+    this.sdp;
+    this.socket = SocketIOClinet.connect(`192.168.18.148:5000`);
+    this.candidates = [];
+  }
+
+  componentDidMount = () => {
+    console.log(this.socket , "SOCKET")
+    this.socket.on('connection-success', (success) => {
+      console.log(success);
+    });
+
+    this.socket.on('offer', (sdp) => {
+      this.sdp = JSON.stringify(sdp);
+
+      // set sdp as remote description
+      this.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    });
+    this.socket.on('answer', (sdp) => {
+      this.sdp = JSON.stringify(sdp);
+
+      // set sdp as remote description
+      this.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    });
+    this.socket.on('ice-candidate', (candidate) => {
+      // console.log('From Peer... ', JSON.stringify(candidate))
+      // this.candidates = [...this.candidates, candidate]
+      this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+    });
+
+    const pc_config = {
       iceServers: [
+        // {
+        //   urls: 'stun:[STUN_IP]:[PORT]',
+        //   'credentials': '[YOR CREDENTIALS]',
+        //   'username': '[USERNAME]'
+        // },
         {
           urls: 'stun:stun.l.google.com:19302',
         },
-        {
-          urls: 'stun:stun1.l.google.com:19302',
-        },
-        {
-          urls: 'stun:stun2.l.google.com:19302',
-        },
       ],
-    }),
-  );
+    };
 
-  const [offer, setOffer] = useState(null);
+    this.pc = new RTCPeerConnection(pc_config);
 
-  const [callToUsername, setCallToUsername] = useState(null);
-
-  useFocusEffect(
-    useCallback(() => {
-      AsyncStorage.getItem('userId').then((id) => {
-        console.log(id);
-        if (id) {
-          setUserId(id);
-        } else {
-          setUserId('');
-          navigation.push('Login');
-        }
-      });
-    }, [userId]),
-  );
-
-  useEffect(() => {
-    navigation.setOptions({
-      title: 'Your ID - ' + userId,
-      headerRight: () => (
-        <Button mode="text" onPress={onLogout} style={{paddingRight: 10}}>
-          Logout
-        </Button>
-      ),
-    });
-  }, [userId]);
-
-  /**
-   * Calling Stuff
-   */
-
-  useEffect(() => {
-    if (socketActive && userId.length > 0) {
-      try {
-        InCallManager.start({media: 'audio'});
-        InCallManager.setForceSpeakerphoneOn(true);
-        InCallManager.setSpeakerphoneOn(true);
-      } catch (err) {
-        console.log('InApp Caller ---------------------->', err);
+    this.pc.onicecandidate = (e) => {
+      // send the candidates to the remote peer
+      // see addCandidate below to be triggered on the remote peer
+      if (e.candidate) {
+        // console.log(JSON.stringify(e.candidate))
+        this.socket.emit('ice-candidate', {candidate: e.candidate});
       }
+    };
 
-      console.log(InCallManager);
+    // triggered when there is a change in connection state
+    this.pc.oniceconnectionstatechange = (e) => {
+      console.log(e);
+    };
 
-      send({
-        type: 'login',
-        name: userId,
+    this.pc.onaddstream = (e) => {
+      debugger;
+      // this.remoteVideoref.current.srcObject = e.streams[0]
+      this.setState({
+        remoteStream: e.stream,
       });
-    }
-  }, [socketActive, userId]);
+    };
 
-  const onLogin = () => {};
+    const success = (stream) => {
+      console.log(stream.toURL());
+      this.setState({
+        localStream: stream,
+      });
+      this.pc.addStream(stream);
+    };
 
-  useEffect(() => {
-    socket.emit('join room', '121212');
-    socket.on('offer', (data) => {
-      console.log(data, 'DATAAAAA OFFER');
-      handleOffer(data.offer, data.name);
-    });
-
-    socket.on('answer', (data) => {
-      handleAnswer(data.answer);
-    });
-
-    socket.on('ice-candidate', (data) => {
-      handleCandidate(data.candidate);
-    });
+    const failure = (e) => {
+      console.log('getUserMedia Error: ', e);
+    };
 
     let isFront = true;
     mediaDevices.enumerateDevices().then((sourceInfos) => {
+      console.log(sourceInfos);
       let videoSourceId;
       for (let i = 0; i < sourceInfos.length; i++) {
         const sourceInfo = sourceInfos[i];
@@ -130,255 +133,197 @@ const CallScreen = (props) => {
           videoSourceId = sourceInfo.deviceId;
         }
       }
-      mediaDevices
-        .getUserMedia({
-          audio: true,
-          video: {
-            mandatory: {
-              minWidth: 500, // Provide your own width, height and frame rate here
-              minHeight: 300,
-              minFrameRate: 30,
-            },
-            facingMode: isFront ? 'user' : 'environment',
-            optional: videoSourceId ? [{sourceId: videoSourceId}] : [],
+
+      const constraints = {
+        audio: true,
+        video: {
+          mandatory: {
+            minWidth: 500, // Provide your own width, height and frame rate here
+            minHeight: 300,
+            minFrameRate: 30,
           },
-        })
-        .then((stream) => {
-          // Got stream!
-          setLocalStream(stream);
-          setUserId('121212');
-          socket.on('other user', (userID) => {
-            setUserId(userID);
-          });
-          yourConn.addStream(stream);
-          
-        })
-        .catch((error) => {
-          // Log error
-        });
+          facingMode: isFront ? 'user' : 'environment',
+          optional: videoSourceId ? [{sourceId: videoSourceId}] : [],
+        },
+      };
+
+      mediaDevices.getUserMedia(constraints).then(success).catch(failure);
     });
-
-    yourConn.onaddstream = (event) => {
-      console.log('On Add Stream', event);
-      setRemoteStream(event.stream);
-    };
-
-    // Setup ice handling
-    yourConn.onicecandidate = (event) => {
-      if (event.candidate) {
-        const payload = {
-          type: 'ice-candidate',
-          candidate: event.candidate,
-        };
-        socket.emit('ice-candidate', payload);
-      }
-    };
-  }, []);
-
-  const send = (message) => {
-    //attach the other peer username to our messages
-    if (connectedUser) {
-      message.name = connectedUser;
-      console.log('Connected iser in end----------', message);
-    }
-    conn.send(JSON.stringify(message));
   };
-
-  const onCall = () => {
-    setCalling(true);
-    connectedUser = callToUsername;
-    console.log('Caling to', callToUsername);
-    // create an offer
-
-    yourConn.createOffer().then((offer) => {
-      yourConn.setLocalDescription(offer).then(() => {
-        console.log('Sending Ofer');
-        console.log(offer);
-        // send({
-        //   type: 'offer',
-        //   offer: offer,
-        // });
-        const payload = {
-          name: 'Jahanzaib',
-          type: 'offer',
-          offer: offer,
-        };
-        socket.emit('offer', payload);
-        // Send pc.localDescription to peer
-      });
+  sendToPeer = (messageType, payload) => {
+    this.socket.emit(messageType, {
+      socketID: this.socket.id,
+      payload,
     });
   };
 
-  //when somebody sends us an offer
-  const handleOffer = async (offer, name) => {
-    console.log(name + ' is calling you.');
+  createOffer = () => {
+    console.log('Offer');
 
-    console.log('Accepting Call===========>', offer);
-    connectedUser = name;
+    // https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createOffer
+    // initiates the creation of SDP
+    this.pc.createOffer({offerToReceiveVideo: 1}).then((sdp) => {
+      // console.log(JSON.stringify(sdp))
+      console.log(sdp , "SDP")
+      // set offer sdp as local description
+      this.pc.setLocalDescription(sdp);
 
-    try {
-      await yourConn.setRemoteDescription(new RTCSessionDescription(offer));
-      //   const answer = await yourConn.createAnswer();
-      //   await yourConn.setLocalDescription(answer);
-      //   send({
-      //     type: 'answer',
-      //     answer: answer,
-      //   });
-      //   const payload = {
-      //     type: 'answer',
-      //     answer: answer,
-      //   };
-      //   socket.emit('answer', payload);
-    } catch (err) {
-      console.log('Offerr Error', err);
-    }
-  };
-
-  //when we got an answer from a remote user
-  const handleAnswer = (answer) => {
-    yourConn.setRemoteDescription(new RTCSessionDescription(answer));
-  };
-
-  //when we got an ice candidate from a remote user
-  const handleCandidate = (candidate) => {
-    setCalling(false);
-    console.log('Candidate ----------------->', candidate);
-    yourConn.addIceCandidate(new RTCIceCandidate(candidate));
-  };
-
-  //hang up
-  const hangUp = () => {
-    send({
-      type: 'leave',
-    });
-
-    handleLeave();
-  };
-
-  const handleLeave = () => {
-    connectedUser = null;
-    setRemoteStream({toURL: () => null});
-
-    yourConn.close();
-    // yourConn.onicecandidate = null;
-    // yourConn.onaddstream = null;
-  };
-
-  const onLogout = () => {
-    // hangUp();
-
-    AsyncStorage.removeItem('userId').then((res) => {
-      navigation.push('Login');
+      this.socket.emit('offer', {sdp: sdp});
     });
   };
 
-  const acceptCall = async () => {
-    console.log('Accepting Call===========>', offer);
-    connectedUser = offer.name;
+  createAnswer = () => {
+    console.log('Answer');
+    this.pc.createAnswer({offerToReceiveVideo: 1}).then((sdp) => {
+      // console.log(JSON.stringify(sdp))
 
-    try {
-      await yourConn.setRemoteDescription(new RTCSessionDescription(offer));
+      // set answer sdp as local description
+      this.pc.setLocalDescription(sdp);
 
-      const answer = await yourConn.createAnswer();
-
-      await yourConn.setLocalDescription(answer);
-
-      send({
-        type: 'answer',
-        answer: answer,
-      });
-    } catch (err) {
-      console.log('Offerr Error', err);
-    }
-  };
-  const rejectCall = async () => {
-    send({
-      type: 'leave',
+      this.socket.emit('answer', {sdp: sdp});
     });
-    ``;
-    setOffer(null);
-
-    handleLeave();
   };
 
-  /**
-   * Calling Stuff Ends
-   */
+  setRemoteDescription = () => {
+    // retrieve and parse the SDP copied from the remote peer
+    const desc = JSON.parse(this.sdp);
 
-  return (
-    <View style={styles.root}>
-      <View style={styles.inputField}>
-        <TextInput
-          label="Enter Friends Id"
-          mode="outlined"
-          style={{marginBottom: 7}}
-          onChangeText={(text) => setCallToUsername(text)}
-        />
-        <Button
-          mode="contained"
-          onPress={onCall}
-          loading={calling}
-          //   style={styles.btn}
-          contentStyle={styles.btnContent}>
-          Call
-        </Button>
+    // set sdp as remote description
+    this.pc.setRemoteDescription(new RTCSessionDescription(desc));
+  };
+
+  addCandidate = () => {
+    // retrieve and parse the Candidate copied from the remote peer
+    // const candidate = JSON.parse(this.textref.value)
+    // console.log('Adding candidate:', candidate)
+
+    // add the candidate to the peer connection
+    // this.pc.addIceCandidate(new RTCIceCandidate(candidate))
+
+    this.candidates.forEach((candidate) => {
+      console.log(JSON.stringify(candidate));
+      this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+    });
+  };
+
+  render() {
+    const {localStream, remoteStream} = this.state;
+
+    const remoteVideo = remoteStream ? (
+      <RTCView
+        key={2}
+        mirror={true}
+        style={{...styles.rtcViewRemote}}
+        objectFit="contain"
+        streamURL={remoteStream && remoteStream.toURL()}
+      />
+    ) : (
+      <View style={{padding: 15}}>
+        <Text style={{fontSize: 22, textAlign: 'center', color: 'white'}}>
+          Waiting for Peer connection ...
+        </Text>
       </View>
+    );
 
-      <View style={styles.videoContainer}>
-        <View style={[styles.videos, styles.localVideos]}>
-          <Text>Your Video</Text>
-          <RTCView streamURL={localStream.toURL()} style={styles.localVideo} />
+    return (
+      <SafeAreaView style={{flex: 1}}>
+        <StatusBar backgroundColor="blue" barStyle={'dark-content'} />
+        <View style={{...styles.buttonsContainer}}>
+          <View style={{flex: 1}}>
+            <TouchableOpacity onPress={this.createOffer}>
+              <View style={styles.button}>
+                <Text style={{...styles.textContent}}>Call</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+          <View style={{flex: 1}}>
+            <TouchableOpacity onPress={this.createAnswer}>
+              <View style={styles.button}>
+                <Text style={{...styles.textContent}}>Answer</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
-        <View style={[styles.videos, styles.remoteVideos]}>
-          <Text>Friends Video</Text>
-          <RTCView
-            streamURL={remoteStream.toURL()}
-            style={styles.remoteVideo}
-          />
+        <View style={{...styles.videosContainer}}>
+          <View
+            style={{
+              position: 'absolute',
+              zIndex: 1,
+              bottom: 10,
+              right: 10,
+              width: 100,
+              height: 200,
+              backgroundColor: 'black', //width: '100%', height: '100%'
+            }}>
+            <View style={{flex: 1}}>
+              <TouchableOpacity
+                onPress={() => localStream._tracks[1]._switchCamera()}>
+                <View>
+                  <RTCView
+                    key={1}
+                    zOrder={0}
+                    objectFit="cover"
+                    style={{...styles.rtcView}}
+                    streamURL={localStream && localStream.toURL()}
+                  />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <ScrollView style={{...styles.scrollView}}>
+            <View
+              style={{
+                flex: 1,
+                width: '100%',
+                backgroundColor: 'black',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+              {remoteVideo}
+            </View>
+          </ScrollView>
         </View>
-      </View>
-    </View>
-  );
-};
+      </SafeAreaView>
+    );
+  }
+}
 
 const styles = StyleSheet.create({
-  root: {
-    backgroundColor: '#fff',
+  buttonsContainer: {
+    flexDirection: 'row',
+  },
+  button: {
+    margin: 5,
+    paddingVertical: 10,
+    backgroundColor: 'lightgrey',
+    borderRadius: 5,
+  },
+  textContent: {
+    fontFamily: 'Avenir',
+    fontSize: 20,
+    textAlign: 'center',
+  },
+  videosContainer: {
     flex: 1,
-    padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
-  inputField: {
-    marginBottom: 10,
-    flexDirection: 'column',
+  rtcView: {
+    width: 100, //dimensions.width,
+    height: 200, //dimensions.height / 2,
+    backgroundColor: 'black',
   },
-  videoContainer: {
+  scrollView: {
     flex: 1,
-    minHeight: 450,
+    // flexDirection: 'row',
+    backgroundColor: 'teal',
+    padding: 15,
   },
-  videos: {
-    width: '100%',
-    flex: 1,
-    position: 'relative',
-    overflow: 'hidden',
-
-    borderRadius: 6,
-  },
-  localVideos: {
-    height: 100,
-    marginBottom: 10,
-  },
-  remoteVideos: {
-    height: 400,
-  },
-  localVideo: {
-    backgroundColor: '#f2f2f2',
-    height: '100%',
-    width: '100%',
-  },
-  remoteVideo: {
-    backgroundColor: '#f2f2f2',
-    height: '100%',
-    width: '100%',
+  rtcViewRemote: {
+    width: dimensions.width - 30,
+    height: 200, //dimensions.height / 2,
+    backgroundColor: 'black',
   },
 });
-export default withSocket(CallScreen);
+
+export default App;

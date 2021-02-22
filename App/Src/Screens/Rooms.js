@@ -71,14 +71,22 @@ const Room = (props) => {
 
     socket.on('offer', (data) => {
       console.log('offer ', data);
-      localPC.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      const offer = localPC.setRemoteDescription(
+        new RTCSessionDescription(data.sdp),
+      );
+      console.log(offer, 'OFFEr');
     });
     socket.on('answer', (data) => {
       console.log('Data , ', data);
-      localPC.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      const answer = localPC.setRemoteDescription(
+        new RTCSessionDescription(data.sdp),
+      );
+      console.log(answer);
     });
     socket.on('ice-candidate', (data) => {
-      localPC.addIceCandidate(new RTCIceCandidate(data.candidate));
+      localPC
+        .addIceCandidate(new RTCIceCandidate(data.candidate))
+        .then((com) => console.log('ICE'));
     });
   }, []);
   localPC.onicecandidate = (e) => {
