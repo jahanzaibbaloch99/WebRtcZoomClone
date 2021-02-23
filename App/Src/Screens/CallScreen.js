@@ -1,140 +1,308 @@
 import React, {useState, useEffect} from 'react';
 import {View, SafeAreaView, Button, StyleSheet, Text} from 'react-native';
-import {RTCPeerConnection, RTCView, mediaDevices} from 'react-native-webrtc';
-import io from 'socket.io-client';
-
-export default function WEBRtc({roomNumber}) {
+import {RTCView, mediaDevices} from 'react-native-webrtc';
+import {withSocket} from '../Utils/withSocket';
+import Peer from 'react-native-peerjs';
+// import Peer from 'peerjs';
+const WEBRtc = (props) => {
   const [localStream, setLocalStream] = useState();
   const [remoteStream, setRemoteStream] = useState();
-  let isCaller, peerConnection;
-  const socket = io('https://desolate-earth-25164.herokuapp.com/');
-  // const socket = io("http://192.168.0.102:3000");
-
+  // const [caller, setCaller] = useState('');
+  // const [callingFriend, setCallingFriend] = useState('');
+  const [callAccepted, setCallAccepted] = useState(false);
+  // const [receivingCall, setReceiving] = useState(false);
+  // let isCaller, peerConnection;
+  // const socket = io('https://desolate-earth-25164.herokuapp.com/');
+  const {
+    receivingCall,
+    dialCall,
+    caller,
+    callingFriend,
+    handleCancle,
+    setCaller,
+    setReceivingCall,
+    setDialCall,
+    setCallerSignal,
+    setCallingFriend,
+    setShow,
+    socket,
+  } = props;
+  let mypeerRef = new Peer();
   const constraints = {
     audio: true,
     video: true,
   };
+  const [peerId, setPeerId] = React.useState('');
+  useEffect(() => {
+    // const data = mypeerRef.on('open', (id) => id);
+    // console.log(data.id, 'HAHA');
+    // socket.emit('peerId', socket.id);
+    // socket.on('peerId', (id) => {
+    //   console.log(mypeerRef, 'OEER ID ');
+    //   mypeerRef.call(peerId);
+    //   setPeerId(id.id);
+    // });
+    if (callingFriend) {
+      mediaDevices
+        .getUserMedia({video: true, audio: true})
+        .then((stream) => {
+          console.log(stream, 'STREAM');
+          setLocalStream(stream);
+          setCaller('121212');
+          console.log('WPRKING');
+          let peer = new Peer({
+            initiator: true,
+            trickle: false,
+            secure: false,
+            config: {
+              iceServers: [
+                {url: 'stun:stun01.sipphone.com'},
+                {url: 'stun:stun.ekiga.net'},
+                {url: 'stun:stun.fwdnet.net'},
+                {url: 'stun:stun.ideasip.com'},
+                {url: 'stun:stun.iptel.org'},
+                {url: 'stun:stun.rixtelecom.se'},
+                {url: 'stun:stun.schlund.de'},
+                {url: 'stun:stun.l.google.com:19302'},
+                {url: 'stun:stun1.l.google.com:19302'},
+                {url: 'stun:stun2.l.google.com:19302'},
+                {url: 'stun:stun3.l.google.com:19302'},
+                {url: 'stun:stun4.l.google.com:19302'},
+                {url: 'stun:stunserver.org'},
+                {url: 'stun:stun.softjoys.com'},
+                {url: 'stun:stun.voiparound.com'},
+                {url: 'stun:stun.voipbuster.com'},
+                {url: 'stun:stun.voipstunt.com'},
+                {url: 'stun:stun.voxgratia.org'},
+                {url: 'stun:stun.xten.com'},
+                {
+                  url: 'turn:numb.viagenie.ca',
+                  credential: 'muazkh',
+                  username: 'webrtc@live.com',
+                },
+                {
+                  url: 'turn:192.158.29.39:3478?transport=udp',
+                  credential: 'JZEOEt2V3Qb0y27GRntt2u2PAYA=',
+                  username: '28224511:1379330808',
+                },
+                {
+                  url: 'turn:192.158.29.39:3478?transport=tcp',
+                  credential: 'JZEOEt2V3Qb0y27GRntt2u2PAYA=',
+                  username: '28224511:1379330808',
+                },
+              ],
+            },
+            stream: stream,
+          });
+          // peer.on('connect', (con) => console.log('CONN'));
+          mypeerRef = peer;
+          console.log(peer, 'PEER');
+          peer.on('error', (e) => {
+            console.log(e, 'Eee');
+          });
+          socket.on('peerId', (id) => {
+            peer.call(id);
+          });
+          peer.on('signal', (data) => {
+            socket.emit('callUser', {
+              userToCall: '121212',
+              signalData: data,
+              from: '212121',
+            });
+          });
+          peer.on('stream', (stream) => {
+            setRemoteStream(stream);
+          });
+          socket.on(`callAccepted-212121`, (signal) => {
+            setReceiving(false);
+            setCallAccepted(true);
+            peer.signal(signal);
+          });
+          socket.on(`close-212121`, () => {
+            stream.getTracks().forEach((track) => {
+              track.stop();
+            });
+            localStream
+              .getTracks()
+              .forEach()
+              .forEach((track) => {
+                track.stop();
+              });
+            mypeerRef.destroy();
+            peer.destroy();
+            closeCall(false);
+            setCallingFriend(false);
+            setCallAccepted(false);
+          });
+        })
+        .catch((e) => {
+          console.log(e, 'EEE');
+        });
+    }
+  }, [peerId, callingFriend]);
 
+  const acceptCall = () => {
+    mediaDevices.getUserMedia({video: true, audio: true}).then((stream) => {
+      console.log(stream, 'STREAM');
+      setLocalStream(stream);
+      setReceivingCall(false);
+      setCallAccepted(true);
+      const peer = new Peer({
+        initiator: true,
+        trickle: false,
+        stream: stream,
+      });
+      mypeerRef = peer;
+      peer.on('signal', (data) => {
+        console.log(data, 'DATA');
+        socket.emit('acceptCall', {signal: data, to: caller});
+      });
+      peer.on('stream', (stream) => {
+        setRemoteStream(stream);
+      });
+      // peer.signal(callerSignal);
+      socket.on('close-212121', () => {
+        stream.getTracks().forEach((track) => {
+          track.stop();
+        });
+        localStream.getTracks().forEach((track) => {
+          track.stop();
+        });
+        remoteStream.getTracks().forEach((track) => {
+          track.stop();
+        });
+        peer.destroy();
+        mypeerRef.destroy();
+        closeCall(false);
+        setCallingFriend(false);
+        setCallAccepted(false);
+      });
+    });
+  };
   /**
    * Getting ready for local stream
    */
-  const startLocalStream = () => {
-    socket.emit('joinTheRoom', '123456');
+  // const startLocalStream = () => {
+  //   socket.emit('joinTheRoom', '123456');
+  // };
+
+  // socket.on('roomCreated', (room) => {
+  //   console.log('room created');
+
+  //   mediaDevices.getUserMedia(constraints).then((stream) => {
+  //     setLocalStream(stream);
+  //     isCaller = true;
+  //   });
+  // });
+
+  // socket.on('roomJoined', (room) => {
+  //   console.log('room joined');
+  //   mediaDevices.getUserMedia(constraints).then((stream) => {
+  //     setLocalStream(stream);
+  //     socket.emit('ready', '123456');
+  //   });
+  // });
+
+  // useEffect(() => {
+  //   const configuration = {
+  //     iceServers: [
+  //       {urls: 'stun:stun.services.mozilla.com'},
+  //       {urls: 'stun:stun.l.google.com:19302'},
+  //     ],
+  //   };
+
+  //   socket.on('ready', (room) => {
+  //     console.log('ready', 'SDADA');
+  //     if (isCaller) {
+  //       console.log('ready', room);
+  //       peerConnection = new RTCPeerConnection(configuration);
+  //       peerConnection.onicecandidate = onIceCandidate;
+  //       peerConnection.iceConnectionState = (e) => {
+  //         console.log('iceConnectionState', e);
+  //       };
+  //       peerConnection.onaddstream = onAddStream;
+  //       peerConnection.createOffer().then((offer) => {
+  //         return peerConnection.setLocalDescription(offer).then(() => {
+  //           console.log('emit offer');
+  //           socket.emit('offer', {
+  //             type: 'offer',
+  //             sdp: offer,
+  //             room: '123456',
+  //           });
+  //         });
+  //       });
+  //     }
+  //   });
+
+  //   socket.on('offer', (e) => {
+  //     if (!isCaller) {
+  //       peerConnection = new RTCPeerConnection(configuration);
+  //       console.log('offer');
+
+  //       peerConnection.onicecandidate = onIceCandidate;
+  //       peerConnection.onaddstream = onAddStream;
+  //       peerConnection.iceConnectionState = (e) => {
+  //         console.log('iceConnectionState', e);
+  //       };
+  //       console.log('about to create answer');
+
+  //       //accept offer from here(ready)
+  //       peerConnection.setRemoteDescription(e).then(() => {
+  //         return peerConnection.createAnswer().then((answer) => {
+  //           return peerConnection.setLocalDescription(answer).then(() => {
+  //             console.log('emit answer', answer);
+  //             socket.emit('answer', {
+  //               type: 'answer',
+  //               sdp: answer,
+  //               room: '123456',
+  //             });
+  //           });
+  //         });
+  //       });
+  //     }
+  //   });
+
+  //   function onAddStream(e) {
+  //     console.log('remote stream', e);
+  //     if (e.stream && remoteStream !== e.stream) {
+  //       console.log('remote stream', e.stream);
+
+  //       setRemoteStream(e.stream);
+  //     }
+  //   }
+
+  //   function onIceCandidate(event) {
+  //     console.log('ice candidate');
+
+  //     if (event.candidate) {
+  //       console.log('sending ice candidate', event.candidate);
+
+  //       socket.emit('candidate', {
+  //         type: 'candidate',
+  //         label: event.candidate.sdpMLineIndex,
+  //         id: event.candidate.sdpMid,
+  //         candidate: event.candidate.candidate,
+  //         room: '123456',
+  //       });
+  //     }
+  //   }
+
+  //   socket.on('candidate', (e) => {
+  //     console.log('candidate', isCaller);
+  //     peerConnection.addIceCandidate(e);
+  //     peerConnection.addStream(localStream);
+  //   });
+
+  //   socket.on('answer', (e) => {
+  //     console.log('answer', e);
+  //     peerConnection.setRemoteDescription(e);
+  //   });
+  // });
+  const startCall = () => {
+    setShow(true);
+    setDialCall(true);
+    setCaller('121212');
   };
-
-  socket.on('roomCreated', (room) => {
-    console.log('room created');
-
-    mediaDevices.getUserMedia(constraints).then((stream) => {
-      setLocalStream(stream);
-      isCaller = true;
-    });
-  });
-
-  socket.on('roomJoined', (room) => {
-    console.log('room joined');
-    mediaDevices.getUserMedia(constraints).then((stream) => {
-      setLocalStream(stream);
-      socket.emit('ready', '123456');
-    });
-  });
-
-  useEffect(() => {
-    const configuration = {
-      iceServers: [
-        {urls: 'stun:stun.services.mozilla.com'},
-        {urls: 'stun:stun.l.google.com:19302'},
-      ],
-    };
-
-    socket.on('ready', (room) => {
-      console.log("ready" , "SDADA")
-      if (isCaller) {
-        console.log('ready', room);
-        peerConnection = new RTCPeerConnection(configuration);
-        peerConnection.onicecandidate = onIceCandidate;
-        peerConnection.iceConnectionState = (e) => {
-          console.log('iceConnectionState', e);
-        };
-        peerConnection.onaddstream = onAddStream;
-        peerConnection.createOffer().then((offer) => {
-          return peerConnection.setLocalDescription(offer).then(() => {
-            console.log('emit offer');
-            socket.emit('offer', {
-              type: 'offer',
-              sdp: offer,
-              room: '123456',
-            });
-          });
-        });
-      }
-    });
-
-    socket.on('offer', (e) => {
-      if (!isCaller) {
-        peerConnection = new RTCPeerConnection(configuration);
-        console.log('offer');
-
-        peerConnection.onicecandidate = onIceCandidate;
-        peerConnection.onaddstream = onAddStream;
-        peerConnection.iceConnectionState = (e) => {
-          console.log('iceConnectionState', e);
-        };
-        console.log('about to create answer');
-
-        //accept offer from here(ready)
-        peerConnection.setRemoteDescription(e).then(() => {
-          return peerConnection.createAnswer().then((answer) => {
-            return peerConnection.setLocalDescription(answer).then(() => {
-              console.log('emit answer', answer);
-              socket.emit('answer', {
-                type: 'answer',
-                sdp: answer,
-                room: '123456',
-              });
-            });
-          });
-        });
-      }
-    });
-
-    function onAddStream(e) {
-      console.log('remote stream', e);
-      if (e.stream && remoteStream !== e.stream) {
-        console.log('remote stream', e.stream);
-
-        setRemoteStream(e.stream);
-      }
-    }
-
-    function onIceCandidate(event) {
-      console.log('ice candidate');
-
-      if (event.candidate) {
-        console.log('sending ice candidate', event.candidate);
-
-        socket.emit('candidate', {
-          type: 'candidate',
-          label: event.candidate.sdpMLineIndex,
-          id: event.candidate.sdpMid,
-          candidate: event.candidate.candidate,
-          room: '123456',
-        });
-      }
-    }
-
-    socket.on('candidate', (e) => {
-      console.log('candidate', isCaller);
-      peerConnection.addIceCandidate(e);
-      peerConnection.addStream(localStream);
-    });
-
-    socket.on('answer', (e) => {
-      console.log('answer', e);
-      peerConnection.setRemoteDescription(e);
-    });
-  });
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.streamContainer}>
@@ -143,9 +311,7 @@ export default function WEBRtc({roomNumber}) {
             {localStream && (
               <RTCView style={styles.rtc} streamURL={localStream.toURL()} />
             )}
-            {!localStream && (
-              <Button title="Tap to start" onPress={startLocalStream} />
-            )}
+            {!localStream && <Button title="Tap to start" />}
           </View>
           <View style={styles.rtcview}>
             {remoteStream && (
@@ -153,11 +319,25 @@ export default function WEBRtc({roomNumber}) {
             )}
           </View>
         </View>
-        {/* {!!remoteStream ? <Button style={styles.toggleButtons} title="Click to stop call" onPress={closeStreams} disabled={!remoteStream} /> : localStream && <Button title="Click to start call" onPress={startCall}  />} */}
+        {!!remoteStream ? (
+          <Button
+            style={styles.toggleButtons}
+            title="Click to stop call"
+            disabled={!remoteStream}
+          />
+        ) : (
+          localStream && (
+            <Button title="Click to start call" onPress={startCall} />
+          )
+        )}
+        <Button title="Click to start call" onPress={startCall} />
+      </View>
+      <View style={styles.streamContainer}>
+        <Button title="Click to start call" onPress={startCall} />
       </View>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -309,3 +489,4 @@ const styles = StyleSheet.create({
 //   console.log('answer');
 //   localPC.setRemoteDescription(remotePC.localDescription);
 // });
+export default withSocket(WEBRtc);

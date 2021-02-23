@@ -1,5 +1,5 @@
 import React, {useState, useEffect, useRef} from 'react';
-import {SafeAreaView, View, TouchableOpacity, Text} from 'react-native';
+import {SafeAreaView, View, TouchableOpacity, Text, Modal} from 'react-native';
 import {
   RTCPeerConnection,
   mediaDevices,
@@ -8,9 +8,28 @@ import {
   RTCIceCandidate,
 } from 'react-native-webrtc';
 import {withSocket} from '../Utils/withSocket';
-// import {v1 as uuid} from 'uuid';
+import CallScreen from '../Screens/CallScreen';
+// import {v1 as uuid} from 'uuid';np
 const Home = (props) => {
+  const [show, setShow] = useState(false);
+  const [callingFriend, setCallingFriend] = useState(false);
+  const [caller, setCaller] = useState('');
+  const [callerSignal, setCallerSignal] = useState();
+  const [receivingCall, setReceivingCall] = useState(false);
+  const [dialCall, setDialCall] = useState(false);
   const {socket} = props;
+  useEffect(() => {
+    if (dialCall) setCallingFriend(true);
+  }, [dialCall]);
+  useEffect(() => {
+    console.log(socket.id, 'ID');
+    socket.emit('peerId', socket.id);
+    socket.on('hey-212121', (data) => {
+      setShow(true), setReceivingCall(true);
+      setCaller(data.from);
+      setCallerSignal(data.signal);
+    });
+  }, [socket]);
   const onCreate = () => {
     props.navigation.navigate('Rooms', {
       id: '121yef8sy18q7fsga804g',
@@ -20,6 +39,15 @@ const Home = (props) => {
     props.navigation.navigate('New', {
       room: '1234',
     });
+  };
+  const handleCancle = () => {
+    setShow(false);
+    setDialCall(false);
+  };
+  const startCall = () => {
+    setShow(true);
+    setDialCall(true);
+    setCaller('121212');
   };
   return (
     <SafeAreaView style={{flex: 1}}>
@@ -31,9 +59,7 @@ const Home = (props) => {
           alignContent: 'center',
         }}>
         <TouchableOpacity
-          onPress={() => {
-            props.navigation.navigate('CallScreen');
-          }}
+          onPress={startCall}
           style={{
             justifyContent: 'center',
             alignItems: 'center',
@@ -71,6 +97,22 @@ const Home = (props) => {
           <Text>CREATE NEW ROOM</Text>
         </TouchableOpacity>
       </View>
+      <Modal visible={show} onRequestClose={handleCancle}>
+        <CallScreen
+          callingFriend={callingFriend}
+          receivingCall={receivingCall}
+          dialCall={dialCall}
+          caller={caller}
+          callingFriend={callingFriend}
+          handleCancle={handleCancle}
+          setCaller={setCallingFriend}
+          setReceivingCall={setReceivingCall}
+          setDialCall={setDialCall}
+          setCallerSignal={setCallerSignal}
+          setCallingFriend={setCallerSignal}
+          setShow={setShow}
+        />
+      </Modal>
     </SafeAreaView>
   );
 };

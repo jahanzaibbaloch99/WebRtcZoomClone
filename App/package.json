@@ -17,7 +17,7 @@
     "@react-navigation/stack": "^5.14.2",
     "peerjs": "^1.3.1",
     "react": "16.13.1",
-    "react-native": "0.63.4",
+    "react-native": "^0.63.4",
     "react-native-gesture-handler": "^1.10.1",
     "react-native-incall-manager": "^3.3.0",
     "react-native-paper": "^4.7.1",

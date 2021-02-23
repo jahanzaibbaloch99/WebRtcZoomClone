@@ -1,156 +1,51 @@
-const webSocketServer = require('ws').Server;
-const wss = new webSocketServer({port: 5000, host: '0.0.0.0'});
-const rooms = {};
+const express = require("express");
+const http = require("http");
+const socket = require("socket.io");
+const morgan = require("morgan");
+const { ExpressPeerServer } = require("peer");
+const { compile } = require("morgan");
+const app = express();
 
-wss.on('connection', (connection) => {
-  console.log('User connected');
+const server = http.createServer(app);
+const io = socket(server).sockets;
 
-  connection.on('message', (message) => {
-    let data;
-
-    try {
-      data = JSON.parse(message);
-    } catch (e) {
-      console.log('Error parsing JSON');
-      data = {};
-    }
-
-    switch (data.type) {
-      case 'enter':
-        console.log('User entered room', data.room);
-        if (rooms[data.room]) {
-          if (Object.keys(rooms[data.room]).length > 1) {
-            sendTo(connection, {
-              type: 'enter',
-              success: false,
-              full: true,
-              wait: false,
-            });
-          } else {
-            rooms[data.room][data.id] = connection;
-            connection.room = data.room;
-            connection.id = data.id;
-            sendTo(connection, {
-              type: 'enter',
-              success: true,
-              full: false,
-              wait: false,
-            });
-          }
-        } else {
-          rooms[data.room] = {};
-          rooms[data.room][data.id] = connection;
-          connection.room = data.room;
-          connection.id = data.id;
-          sendTo(connection, {
-            type: 'enter',
-            success: true,
-            full: false,
-            wait: true,
-          });
-        }
-        break;
-      case 'offer':
-        {
-          const ids = Object.keys(rooms[connection.room]);
-          let remoteId, conn;
-          if (ids[0] === connection.id) {
-            remoteId = ids[1];
-            conn = rooms[connection.room][ids[1]];
-          } else {
-            remoteId = ids[0];
-            conn = rooms[connection.room][ids[0]];
-          }
-
-          if (conn != null) {
-            console.log('Sending offer to', remoteId);
-            connection.remoteId = remoteId;
-            conn.remoteId = connection.id;
-            sendTo(conn, {
-              type: 'offer',
-              offer: data.offer,
-              remoteId: connection.id,
-            });
-          }
-        }
-        break;
-      case 'answer':
-        {
-          const conn = rooms[connection.room][data.remoteId];
-
-          if (conn != null) {
-            console.log('Sending answer to', data.remoteId);
-            connection.remoteId = data.remoteId;
-            sendTo(conn, {
-              type: 'answer',
-              answer: data.answer,
-            });
-          }
-        }
-        break;
-      case 'candidate':
-        {
-          console.log('Sending candidate to', connection.remoteId);
-          const conn = rooms[connection.room][connection.remoteId];
-
-          if (conn != null) {
-            sendTo(conn, {
-              type: 'candidate',
-              candidate: data.candidate,
-            });
-          }
-        }
-        break;
-      case 'leave':
-        {
-          delete rooms[connection.room][connection.id];
-          const conn = rooms[connection.room][connection.remoteId];
-          if (Object.keys(rooms[connection.room]).length === 0) {
-            delete rooms[connection.room];
-          }
-
-          if (conn != null) {
-            console.log('Disconnecting user from', connection.remoteId);
-            conn.remoteId = null;
-            sendTo(conn, {
-              type: 'leave',
-            });
-          }
-        }
-        break;
-      default:
-        sendTo(connection, {
-          type: 'enter',
-          message: 'Unrecognized command:' + data.type,
-        });
-        break;
+app.use(express.json());
+io.on("connection", (socket) => {
+  socket.on("callUser", (data) => {
+    console.log("call user", data.userToCall);
+    io.emit(`hey-${data.userToCall}`, {
+      signal: data.signalData,
+      from: data.from,
+    });
+  });
+  socket.on("peerId", (id) => {
+    const newId = Boolean(id !== socket.id);
+    console.log(id, "OD");
+    console.log(socket.id, "SOCKET");
+    console.log(newId, "NEWID");
+    if (newId) {
+      console.log(id, "ID");
+      io.emit("peerId", id);
     }
   });
 
-  connection.on('close', () => {
-    console.log('Connection closed');
-    if (connection.room) {
-      delete rooms[connection.room][connection.id];
-
-      if (connection.remoteId) {
-        console.log('Disconnecting user from', connection.remoteId);
-        const conn = rooms[connection.room][connection.remoteId];
-        conn.remoteId = null;
-
-        if (conn !== null) {
-          sendTo(conn, {
-            type: 'leave',
-          });
-        }
-      }
-    }
+  socket.on("acceptCall", (data) => {
+    console.log("check accpt call", data.to);
+    io.emit(`callAccepted-${data.to}`, data.signal);
   });
+
+  socket.on("close", (data) => {
+    console.log("check close call", data);
+    io.emit(`close-${data.to}`);
+  });
+
+  socket.on("rejected", (data) => {
+    console.log("check close call", data.to);
+    io.emit(`rejected-${data.to}`);
+  });
+  console.log("connected ");
 });
 
-const sendTo = (conn, message) => {
-  conn.send(JSON.stringify(message));
-};
+const port = process.env.PORT || 5000;
 
-wss.on('listening', () => {
-  console.log('Server started...');
-});
+server.listen(port, () => console.log(`Server Is Running On Port ${port}`));

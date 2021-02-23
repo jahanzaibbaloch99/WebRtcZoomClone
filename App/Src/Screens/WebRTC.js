@@ -84,10 +84,10 @@ const WebRTC = ({route, navigation}) => {
         }
       }
     };
-   
+
     const startConnection = (startPC = false) => {
       const isFront = true;
-     
+
       const facingMode = isFront ? 'user' : 'environment';
       const constraints = {
         audio: true,

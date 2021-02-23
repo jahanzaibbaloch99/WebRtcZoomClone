@@ -1,0 +1,63 @@
+<html>
+
+<body>
+    <style>
+        #outgoing {
+            width: 600px;
+            word-wrap: break-word;
+            white-space: normal;
+        }
+    </style>
+    <video id="localVideo" autoplay muted></video>
+    <video id="remoteVideo" autoplay muted></video>
+    <script src="simplepeer.min.js"></script>
+    <script>
+        (async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            const localVideo = document.getElementById("localVideo");
+            const remoteVideo = document.getElementById("remoteVideo");
+
+            localVideo.srcObject = stream;
+            const i = new SimplePeer({
+                initiator: true,
+                trickle: true,
+                // streams: [ stream ]
+            })
+            const ni = new SimplePeer({
+                initiator: false,
+                trickle: true
+            });
+            i.on('error', err => console.log('error', err))
+            i.on('signal', data => {
+                ni.signal(data);
+            });
+            i.on('connect', () => {
+                console.log('i: connected')
+                i.send('whatever' + Math.random());
+
+                i.addStream(stream);
+            })
+            i.on('data', data => {
+                console.log('i -> data: ' + data)
+            });
+            /****************************************/
+            ni.on('error', err => console.log('error', err))
+            ni.on('signal', data => {
+                i.signal(data);
+            });
+            ni.on('connect', () => {
+                console.log('ni: connected')
+                ni.send('whatever' + Math.random())
+            })
+            ni.on('data', data => {
+                console.log('ni -> data: ' + data)
+            });
+
+            ni.on('stream', (stream) => {
+                remoteVideo.srcObject = stream;
+            });
+        })();
+    </script>
+</body>
+
+</html>
