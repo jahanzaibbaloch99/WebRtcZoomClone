@@ -23,10 +23,9 @@ io.on("connection", (socket) => {
     console.log(id, "OD");
     console.log(socket.id, "SOCKET");
     console.log(newId, "NEWID");
-    if (newId) {
-      console.log(id, "ID");
-      io.emit("peerId", id);
-    }
+   
+      io.emit("peerId", socket.id);
+    
   });
 
   socket.on("acceptCall", (data) => {

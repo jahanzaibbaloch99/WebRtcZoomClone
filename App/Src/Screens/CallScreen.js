@@ -27,11 +27,11 @@ const WEBRtc = (props) => {
     setShow,
     socket,
   } = props;
-  let mypeerRef = new Peer();
   const constraints = {
     audio: true,
     video: true,
   };
+  console.log(socket.id, 'SOCKET ID');
   const [peerId, setPeerId] = React.useState('');
   useEffect(() => {
     // const data = mypeerRef.on('open', (id) => id);
@@ -97,13 +97,13 @@ const WEBRtc = (props) => {
           // peer.on('connect', (con) => console.log('CONN'));
           mypeerRef = peer;
           console.log(peer, 'PEER');
-          peer.on('error', (e) => {
-            console.log(e, 'Eee');
-          });
-          socket.on('peerId', (id) => {
-            peer.call(id);
-          });
+          // peer.call(socket.id);
+          // socket.on('peerId', (id) => {
+          //   peer.call(id);
+          // });
+          peer.call(peer.id);
           peer.on('signal', (data) => {
+            console.log(data, 'DAATAA SIGNAL');
             socket.emit('callUser', {
               userToCall: '121212',
               signalData: data,
