@@ -1,6 +1,15 @@
 import React, {useState, useEffect} from 'react';
 import {View, SafeAreaView, Button, StyleSheet, Text} from 'react-native';
-import {RTCView, mediaDevices} from 'react-native-webrtc';
+import {
+  RTCPeerConnection,
+  RTCIceCandidate,
+  RTCSessionDescription,
+  RTCView,
+  MediaStream,
+  MediaStreamTrack,
+  mediaDevices,
+  registerGlobals,
+} from 'react-native-webrtc';
 import {withSocket} from '../Utils/withSocket';
 import Peer from 'react-native-peerjs';
 // import Peer from 'peerjs';
@@ -25,14 +34,15 @@ const WEBRtc = (props) => {
     setCallerSignal,
     setCallingFriend,
     setShow,
+    localPeer,
+    peerId,
+    setPeerId,
     socket,
+    setRemoteId,
+    remotePeer,
+    remoteId,
   } = props;
-  const constraints = {
-    audio: true,
-    video: true,
-  };
-  console.log(socket.id, 'SOCKET ID');
-  const [peerId, setPeerId] = React.useState('');
+  let mypeerRef = null;
   useEffect(() => {
     // const data = mypeerRef.on('open', (id) => id);
     // console.log(data.id, 'HAHA');
@@ -46,136 +56,100 @@ const WEBRtc = (props) => {
       mediaDevices
         .getUserMedia({video: true, audio: true})
         .then((stream) => {
-          console.log(stream, 'STREAM');
           setLocalStream(stream);
           setCaller('121212');
           console.log('WPRKING');
-          let peer = new Peer({
-            initiator: true,
-            trickle: false,
-            secure: false,
-            config: {
-              iceServers: [
-                {url: 'stun:stun01.sipphone.com'},
-                {url: 'stun:stun.ekiga.net'},
-                {url: 'stun:stun.fwdnet.net'},
-                {url: 'stun:stun.ideasip.com'},
-                {url: 'stun:stun.iptel.org'},
-                {url: 'stun:stun.rixtelecom.se'},
-                {url: 'stun:stun.schlund.de'},
-                {url: 'stun:stun.l.google.com:19302'},
-                {url: 'stun:stun1.l.google.com:19302'},
-                {url: 'stun:stun2.l.google.com:19302'},
-                {url: 'stun:stun3.l.google.com:19302'},
-                {url: 'stun:stun4.l.google.com:19302'},
-                {url: 'stun:stunserver.org'},
-                {url: 'stun:stun.softjoys.com'},
-                {url: 'stun:stun.voiparound.com'},
-                {url: 'stun:stun.voipbuster.com'},
-                {url: 'stun:stun.voipstunt.com'},
-                {url: 'stun:stun.voxgratia.org'},
-                {url: 'stun:stun.xten.com'},
-                {
-                  url: 'turn:numb.viagenie.ca',
-                  credential: 'muazkh',
-                  username: 'webrtc@live.com',
-                },
-                {
-                  url: 'turn:192.158.29.39:3478?transport=udp',
-                  credential: 'JZEOEt2V3Qb0y27GRntt2u2PAYA=',
-                  username: '28224511:1379330808',
-                },
-                {
-                  url: 'turn:192.158.29.39:3478?transport=tcp',
-                  credential: 'JZEOEt2V3Qb0y27GRntt2u2PAYA=',
-                  username: '28224511:1379330808',
-                },
-              ],
-            },
-            stream: stream,
+          const call = remotePeer.call(remoteId, stream);
+          call.on('stream', (rem) => {
+            console.log(rem, 'REMOTE');
           });
+          console.log(remotePeer, 'LOCAL');
           // peer.on('connect', (con) => console.log('CONN'));
-          mypeerRef = peer;
-          console.log(peer, 'PEER');
+          // mypeerRef = peer;
+          // localPeer
+          // console.log(peer, 'PEER');
+          // peer.on('signalingStateChange', (data) => {
+          //   console.log(data, 'DATA');
+          // });
           // peer.call(socket.id);
+          if (localPeer.WEBRTC_SUPPORT) {
+            console.log('SUPPORTED');
+          } else {
+            console.log('UNSUPPORTED');
+          }
           // socket.on('peerId', (id) => {
           //   peer.call(id);
           // });
-          peer.call(peer.id);
-          peer.on('signal', (data) => {
-            console.log(data, 'DAATAA SIGNAL');
-            socket.emit('callUser', {
-              userToCall: '121212',
-              signalData: data,
-              from: '212121',
-            });
-          });
-          peer.on('stream', (stream) => {
-            setRemoteStream(stream);
-          });
-          socket.on(`callAccepted-212121`, (signal) => {
-            setReceiving(false);
-            setCallAccepted(true);
-            peer.signal(signal);
-          });
-          socket.on(`close-212121`, () => {
-            stream.getTracks().forEach((track) => {
-              track.stop();
-            });
-            localStream
-              .getTracks()
-              .forEach()
-              .forEach((track) => {
-                track.stop();
-              });
-            mypeerRef.destroy();
-            peer.destroy();
-            closeCall(false);
-            setCallingFriend(false);
-            setCallAccepted(false);
-          });
+          // peer.on('signal', (data) => {
+          //   console.log(data, 'DAATAA SIGNAL');
+          //   socket.emit('callUser', {
+          //     userToCall: '121212',
+          //     signalData: data,
+          //     from: '212121',
+          //   });
+          // });
+          // peer.on('stream', (stream) => {
+          //   setRemoteStream(stream);
+          // });
+          // peer.on('error', (error) => console.log(error));
+          // socket.on(`callAccepted-212121`, (signal) => {
+          //   setReceiving(false);
+          //   setCallAccepted(true);
+          //   // peer.signal(signal);
+          // });
+          // socket.on(`close-212121`, () => {
+          //   stream.getTracks().forEach((track) => {
+          //     track.stop();
+          //   });
+          //   localStream
+          //     .getTracks()
+          //     .forEach()
+          //     .forEach((track) => {
+          //       track.stop();
+          //     });
+          //   mypeerRef.destroy();
+          //   peer.destroy();
+          //   closeCall(false);
+          //   setCallingFriend(false);
+          //   setCallAccepted(false);
+          // });
         })
         .catch((e) => {
           console.log(e, 'EEE');
         });
     }
-  }, [peerId, callingFriend]);
+  }, [callingFriend]);
 
   const acceptCall = () => {
-    mediaDevices.getUserMedia({video: true, audio: true}).then((stream) => {
-      console.log(stream, 'STREAM');
-      setLocalStream(stream);
-      setReceivingCall(false);
-      setCallAccepted(true);
-      const peer = new Peer({
-        initiator: true,
-        trickle: false,
-        stream: stream,
-      });
-      mypeerRef = peer;
-      peer.on('signal', (data) => {
-        console.log(data, 'DATA');
-        socket.emit('acceptCall', {signal: data, to: caller});
-      });
-      peer.on('stream', (stream) => {
-        setRemoteStream(stream);
-      });
-      // peer.signal(callerSignal);
-      socket.on('close-212121', () => {
-        stream.getTracks().forEach((track) => {
-          track.stop();
+    remotePeer.on('call', (call) => {
+      console.log(call, 'CALL ');
+
+      mediaDevices.getUserMedia({video: true, audio: true}).then((stream) => {
+        console.log(stream, 'STREAM');
+        setLocalStream(stream);
+        setReceivingCall(false);
+        setCallAccepted(true);
+        call.answer(stream);
+        call.on('stream', (remote) => {
+          console.log(remote, 'STREAM');
         });
-        localStream.getTracks().forEach((track) => {
-          track.stop();
+        // peer.signal(callerSignal);
+        socket.on('close-212121', () => {
+          stream.getTracks().forEach((track) => {
+            track.stop();
+          });
+          localStream.getTracks().forEach((track) => {
+            track.stop();
+          });
+          remoteStream.getTracks().forEach((track) => {
+            track.stop();
+          });
+          peer.destroy();
+          mypeerRef.destroy();
+          closeCall(false);
+          setCallingFriend(false);
+          setCallAccepted(false);
         });
-        remoteStream.getTracks().forEach((track) => {
-          track.stop();
-        });
-        peer.destroy();
-        mypeerRef.destroy();
-        closeCall(false);
-        setCallingFriend(false);
-        setCallAccepted(false);
       });
     });
   };
@@ -333,7 +307,7 @@ const WEBRtc = (props) => {
         <Button title="Click to start call" onPress={startCall} />
       </View>
       <View style={styles.streamContainer}>
-        <Button title="Click to start call" onPress={startCall} />
+        <Button title="Click to Accept" onPress={acceptCall} />
       </View>
     </SafeAreaView>
   );

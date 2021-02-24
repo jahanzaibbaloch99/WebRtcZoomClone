@@ -9,8 +9,10 @@ import {
 } from 'react-native-webrtc';
 import {withSocket} from '../Utils/withSocket';
 import CallScreen from '../Screens/CallScreen';
-// import {v1 as uuid} from 'uuid';np
+import Peer from 'react-native-peerjs';
+
 const Home = (props) => {
+  const localPeer = new Peer();
   const [show, setShow] = useState(false);
   const [callingFriend, setCallingFriend] = useState(false);
   const [caller, setCaller] = useState('');
@@ -18,12 +20,23 @@ const Home = (props) => {
   const [receivingCall, setReceivingCall] = useState(false);
   const [dialCall, setDialCall] = useState(false);
   const {socket} = props;
+  const [peerId, setPeerId] = useState('');
+  const [remoteId, setRemoteId] = useState('');
+  const remotePeer = new Peer();
+  useEffect(() => {
+    localPeer.on('open', (data) => {
+      setPeerId(data);
+    });
+  }, []);
+  useEffect(() => {
+    remotePeer.on('open', (data) => {
+      setRemoteId(data);
+    });
+  }, []);
   useEffect(() => {
     if (dialCall) setCallingFriend(true);
   }, [dialCall]);
   useEffect(() => {
-    console.log(socket.id, 'ID');
-    socket.emit('peerId', socket.id);
     socket.on('hey-212121', (data) => {
       setShow(true), setReceivingCall(true);
       setCaller(data.from);
@@ -99,10 +112,13 @@ const Home = (props) => {
       </View>
       <Modal visible={show} onRequestClose={handleCancle}>
         <CallScreen
+          localPeer={localPeer}
           callingFriend={callingFriend}
           receivingCall={receivingCall}
           dialCall={dialCall}
           caller={caller}
+          remoteId={remoteId}
+          setRemoteId={setRemoteId}
           callingFriend={callingFriend}
           handleCancle={handleCancle}
           setCaller={setCallingFriend}
@@ -111,6 +127,9 @@ const Home = (props) => {
           setCallerSignal={setCallerSignal}
           setCallingFriend={setCallerSignal}
           setShow={setShow}
+          peerId={peerId}
+          setPeerId={setPeerId}
+          remotePeer={remotePeer}
         />
       </Modal>
     </SafeAreaView>
